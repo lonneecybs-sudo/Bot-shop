@@ -1,137 +1,97 @@
-from aiogram import F
+from aiogram import Router, F
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, CallbackQuery
+from aiogram.fsm.state import State, StatesGroup
+from database import get_products, get_product, create_order, get_user_orders, get_categories
 
-from config import Tariff, ADMIN_ID, logger
-from keyboards import (
-    get_tariff_keyboard, get_client_order_keyboard,
-    get_admin_order_keyboard, get_back_keyboard
-)
-from states import OrderStates
-from database import create_order, get_order
-import database
+router = Router()
 
-async def order_start(callback: CallbackQuery, state: FSMContext):
-    """Начало заказа"""
-    await callback.message.delete()
-    await callback.message.answer(
-        "📦 <b>ВЫБЕРИТЕ ТАРИФ</b>\n\n"
-        "┌─────────────────────────┐\n"
-        "│ ⭐ МИНИМАЛЬНЫЙ • 50⭐    │\n"
-        "│ Базовые команды         │\n"
-        "├─────────────────────────┤\n"
-        "│ ⭐⭐ СРЕДНИЙ • 100⭐     │\n"
-        "│ Команды + инлайн кнопки │\n"
-        "├─────────────────────────┤\n"
-        "│ ⭐⭐⭐ ПОЛНЫЙ • 300⭐     │\n"
-        "│ Любые функции, кастом   │\n"
-        "└─────────────────────────┘\n\n"
-        "<i>Выберите подходящий тариф:</i>",
-        reply_markup=get_tariff_keyboard(),
-        parse_mode="HTML"
-    )
+class OrderStates(StatesGroup):
+    waiting_for_category = State()
+    waiting_for_product = State()
+    waiting_for_quantity = State()
+    waiting_for_confirmation = State()
 
-async def tariff_chosen(callback: CallbackQuery, state: FSMContext):
-    """Выбор тарифа"""
-    tariff_map = {
-        "tariff_min": Tariff.MIN,
-        "tariff_mid": Tariff.MID,
-        "tariff_max": Tariff.MAX
-    }
+@router.callback_query(F.data == "catalog")
+async def catalog(callback: CallbackQuery, state: FSMContext):
+    """Показать каталог товаров"""
+    categories = get_categories()
     
-    tariff = tariff_map[callback.data]
-    await state.update_data(tariff=tariff)
-    await state.set_state(OrderStates.entering_description)
+    keyboard = []
+    for category in categories:
+        keyboard.append([InlineKeyboardButton(text=f"📁 {category}", callback_data=f"cat_{category}")])
+    keyboard.append([InlineKeyboardButton(text="🛒 Мои заказы", callback_data="my_orders")])
+    keyboard.append([InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_main")])
     
-    await callback.message.delete()
-    await callback.message.answer(
-        f"📝 <b>ОПИШИТЕ ЗАДАЧУ</b>\n\n"
-        f"Выбран тариф: {tariff.value[0]} ({tariff.value[1]}⭐)\n\n"
-        f"<b>Пример:</b>\n"
-        f"• Бот для магазина\n"
-        f"• Админка для товаров\n"
-        f"• Корзина и оплата\n\n"
-        f"<i>Отправьте описание одним сообщением:</i>",
-        parse_mode="HTML"
+    await callback.message.edit_text(
+        "🛍 *Каталог товаров*\n\nВыберите категорию:",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
+    await callback.answer()
 
-async def description_received(message: Message, state: FSMContext, bot):
-    """Получение описания заказа"""
-    data = await state.get_data()
-    tariff = data['tariff']
+@router.callback_query(F.data.startswith("cat_"))
+async def show_category(callback: CallbackQuery, state: FSMContext):
+    """Показать товары категории"""
+    category = callback.data[4:]
+    products = get_products(category)
     
-    order_id = create_order(
-        user_id=message.from_user.id,
-        username=message.from_user.username or "нет username",
-        tariff=tariff,
-        description=message.text
-    )
-    
-    await state.clear()
-    
-    await message.answer(
-        f"✅ <b>ЗАКАЗ №{order_id} ОФОРМЛЕН!</b>\n\n"
-        f"Тариф: {tariff.value[0]}\n"
-        f"Сумма: {tariff.value[1]}⭐\n\n"
-        f"⏳ Ожидайте подтверждения от разработчика",
-        reply_markup=get_client_order_keyboard(order_id),
-        parse_mode="HTML"
-    )
-    
-    # Уведомление админу
-    await bot.send_message(
-        ADMIN_ID,
-        f"🔔 <b>НОВЫЙ ЗАКАЗ #{order_id}</b>\n\n"
-        f"От: @{message.from_user.username or 'нет username'}\n"
-        f"Тариф: {tariff.value[0]}\n"
-        f"Сумма: {tariff.value[1]}⭐\n\n"
-        f"<b>Описание:</b>\n{message.text}",
-        reply_markup=get_admin_order_keyboard(order_id, is_free=True),
-        parse_mode="HTML"
-    )
-
-async def my_orders(callback: CallbackQuery):
-    """Показать заказы пользователя"""
-    user_orders = database.get_user_orders(callback.from_user.id)
-    
-    if not user_orders:
-        await callback.message.delete()
-        await callback.message.answer(
-            "📋 <b>У вас пока нет заказов</b>\n\n"
-            "Нажмите «Заказать бота», чтобы оформить заказ.",
-            reply_markup=get_back_keyboard(),
-            parse_mode="HTML"
+    if not products:
+        await callback.message.edit_text(
+            f"❌ В категории '{category}' пока нет товаров.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 Назад", callback_data="catalog")]
+            ])
         )
+        await callback.answer()
         return
     
-    text = "📋 <b>ВАШИ ЗАКАЗЫ</b>\n\n"
-    for order in sorted(user_orders, key=lambda x: x.created_at, reverse=True)[:5]:
-        status_emoji = {
-            'pending': '⏳',
-            'waiting_payment': '💰',
-            'development': '🛠️',
-            'completed': '✅'
-        }.get(order.status, '⏳')
-        
-        status_text = {
-            'pending': 'Ожидает',
-            'waiting_payment': 'Ожидает оплаты',
-            'development': 'В разработке',
-            'completed': 'Готов'
-        }.get(order.status, 'Неизвестно')
-        
-        text += f"{status_emoji} <b>Заказ №{order.id}</b>\n"
-        text += f"└ {order.tariff.value[0]} | {status_text}\n"
-        text += f"└ {order.created_at.strftime('%d.%m.%Y')}\n\n"
+    text = f"📁 *Категория: {category}*\n\n"
+    keyboard = []
     
-    text += "<i>Статусы обновляются автоматически</i>"
+    for product in products:
+        text += f"*{product['name']}*\n"
+        text += f"💰 Цена: {product['price']} руб.\n"
+        text += f"📝 {product['description'][:50]}...\n\n"
+        keyboard.append([InlineKeyboardButton(
+            text=f"🛒 {product['name']} - {product['price']} руб.",
+            callback_data=f"product_{product['id']}"
+        )])
     
-    await callback.message.delete()
-    await callback.message.answer(text, reply_markup=get_back_keyboard(), parse_mode="HTML")
+    keyboard.append([InlineKeyboardButton(text="🔙 Назад", callback_data="catalog")])
+    
+    await callback.message.edit_text(
+        text,
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
+    )
+    await callback.answer()
 
-def register_handlers(dp):
-    """Регистрация обработчиков заказов"""
-    dp.callback_query.register(order_start, F.data == "order")
-    dp.callback_query.register(tariff_chosen, F.data.startswith("tariff_"))
-    dp.message.register(description_received, OrderStates.entering_description)
-    dp.callback_query.register(my_orders, F.data == "my_orders")
+@router.callback_query(F.data.startswith("product_"))
+async def show_product(callback: CallbackQuery, state: FSMContext):
+    """Показать детали товара"""
+    product_id = int(callback.data.split("_")[1])
+    product = get_product(product_id)
+    
+    if not product:
+        await callback.message.edit_text("❌ Товар не найден.")
+        await callback.answer()
+        return
+    
+    await state.update_data(product_id=product_id)
+    
+    text = f"*{product['name']}*\n\n"
+    text += f"💰 *Цена:* {product['price']} руб.\n"
+    text += f"📝 *Описание:* {product['description']}\n"
+    text += f"📦 *В наличии:* {'Да' if product['in_stock'] else 'Нет'}\n\n"
+    
+    if product['in_stock']:
+        text += "Введите количество товара для заказа (от 1 до 10):"
+        await state.set_state(OrderStates.waiting_for_quantity)
+    else:
+        text += "❌ Товара нет в наличии."
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Назад", callback_data=f"cat_{product['category']}")]
+    ])
+    
