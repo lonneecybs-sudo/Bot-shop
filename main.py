@@ -1,53 +1,46 @@
-#!/usr/bin/env python3
 import asyncio
 import logging
-
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
-# Импортируем конфигурацию
-from config import TOKEN, ADMIN_ID, logger
-
-# Импортируем обработчики
 from handlers import start, order, payment, admin, reviews
+from database import init_db
+
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Токен бота (замените на свой)
+BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
 
 async def main():
     """Главная функция запуска бота"""
+    # Инициализация базы данных
+    logger.info("Инициализация базы данных...")
+    init_db()
+    logger.info("База данных готова")
     
     # Инициализация бота и диспетчера
-    bot = Bot(token=TOKEN)
-    storage = MemoryStorage()
-    dp = Dispatcher(storage=storage)
+    bot = Bot(token=BOT_TOKEN)
+    dp = Dispatcher(storage=MemoryStorage())
     
-    # Регистрируем все обработчики
-    start.register_handlers(dp)
-    order.register_handlers(dp)
-    payment.register_handlers(dp)
-    admin.register_handlers(dp)
-    reviews.register_handlers(dp)
+    # Регистрация роутеров
+    dp.include_router(start.router)
+    dp.include_router(order.router)
+    dp.include_router(payment.router)
+    dp.include_router(admin.router)
+    dp.include_router(reviews.router)
     
-    # Логируем запуск
-    logger.info("=" * 50)
-    logger.info("🚀 БОТ ЗАПУЩЕН И ГОТОВ К РАБОТЕ!")
-    logger.info("=" * 50)
-    logger.info(f"👤 Админ ID: {ADMIN_ID}")
-    logger.info(f"🤖 Имя бота: @KRIchiboBot")
-    logger.info(f"📁 Папка проекта: shop")
-    logger.info(f"💾 Хранилище: MemoryStorage")
-    logger.info("=" * 50)
+    logger.info("Бот запущен и готов к работе!")
     
-    # Запускаем поллинг
+    # Запуск поллинга
     try:
         await dp.start_polling(bot)
     finally:
-        # Закрываем соединения при остановке
         await bot.session.close()
-        logger.info("👋 Бот остановлен")
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("👋 Бот остановлен пользователем")
-    except Exception as e:
-        logger.error(f"❌ Критическая ошибка: {e}")
+    asyncio.run(main())
