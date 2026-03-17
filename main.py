@@ -14,7 +14,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Токен бота (замените на свой)
-BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
+BOT_TOKEN = "8546103501:AAGZv9evkjpQJR92TxX5-6Do7W_7M6XwXbw"
 
 async def main():
     """Главная функция запуска бота"""
