@@ -11,7 +11,7 @@ from keyboards import (
     get_main_inline_keyboard
 )
 from states import OrderStates
-from database import create_review, get_approved_reviews, get_order, get_user_orders
+from database import create_review, get_approved_reviews, get_order, get_pending_reviews
 
 async def show_reviews(callback: CallbackQuery):
     """Показать все одобренные отзывы"""
@@ -31,7 +31,7 @@ async def show_reviews(callback: CallbackQuery):
         
         text = "💬 <b>ОТЗЫВЫ НАШИХ КЛИЕНТОВ</b>\n\n"
         
-        for review in approved[-10:]:
+        for review in approved[-10:]:  # последние 10
             stars = "⭐" * review['rating']
             text += f"{stars}\n"
             text += f"<b>@{review['username']}:</b>\n"
@@ -64,11 +64,11 @@ async def leave_review_start(callback: CallbackQuery, state: FSMContext):
             await callback.answer("❌ Заказ не найден!", show_alert=True)
             return
         
-        if order.user_id != callback.from_user.id:
+        if order['user_id'] != callback.from_user.id:
             await callback.answer("❌ Это не ваш заказ!", show_alert=True)
             return
         
-        if order.status != 'completed':
+        if order['status'] != 'completed':
             await callback.answer(
                 "❌ Можно оставить отзыв только после завершения заказа!", 
                 show_alert=True
@@ -174,26 +174,64 @@ async def review_text_received(message: Message, state: FSMContext):
     except Exception as e:
         logger.error(f"Ошибка в review_text_received: {e}")
         await message.answer(
-            "❌ Произошла ошибка при сохранении отзыва",
+            f"❌ Произошла ошибка при сохранении отзыва: {str(e)}",
             reply_markup=get_back_keyboard()
         )
         await state.clear()
 
 async def approve_review_handler(callback: CallbackQuery):
     """Одобрить отзыв"""
-    review_id = int(callback.data.split("_")[2])
-    from database import approve_review
-    if approve_review(review_id):
-        await callback.message.edit_text("✅ Отзыв одобрен!")
-    else:
+    try:
+        review_id = int(callback.data.split("_")[2])
+        from database import approve_review
+        if approve_review(review_id):
+            await callback.message.edit_text("✅ Отзыв одобрен!")
+        else:
+            await callback.answer("❌ Ошибка!", show_alert=True)
+    except Exception as e:
+        logger.error(f"Ошибка при одобрении отзыва: {e}")
         await callback.answer("❌ Ошибка!", show_alert=True)
 
 async def reject_review_handler(callback: CallbackQuery):
     """Отклонить отзыв"""
-    review_id = int(callback.data.split("_")[2])
-    from database import reject_review
-    reject_review(review_id)
-    await callback.message.edit_text("❌ Отзыв отклонен")
+    try:
+        review_id = int(callback.data.split("_")[2])
+        from database import reject_review
+        reject_review(review_id)
+        await callback.message.edit_text("❌ Отзыв отклонен")
+    except Exception as e:
+        logger.error(f"Ошибка при отклонении отзыва: {e}")
+        await callback.answer("❌ Ошибка!", show_alert=True)
+
+async def admin_reviews(callback: CallbackQuery):
+    """Показать отзывы на модерации (для админа)"""
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("⛔ Доступ запрещен", show_alert=True)
+        return
+    
+    pending = get_pending_reviews()
+    
+    if not pending:
+        await callback.message.edit_text(
+            "📋 Нет отзывов на модерации",
+            reply_markup=get_back_keyboard()
+        )
+        return
+    
+    await callback.message.delete()
+    for review in pending[:5]:
+        text = (
+            f"💬 <b>Отзыв #{review['id']}</b>\n\n"
+            f"От: @{review['username']}\n"
+            f"Оценка: {'⭐' * review['rating']}\n"
+            f"Текст: {review['text']}\n"
+            f"Дата: {review['date'].strftime('%d.%m.%Y')}"
+        )
+        await callback.message.answer(
+            text,
+            reply_markup=get_admin_reviews_keyboard(review['id']),
+            parse_mode="HTML"
+        )
 
 def register_handlers(dp):
     """Регистрация обработчиков отзывов"""
@@ -203,3 +241,4 @@ def register_handlers(dp):
     dp.message.register(review_text_received, OrderStates.waiting_for_review_text)
     dp.callback_query.register(approve_review_handler, F.data.startswith("approve_review_"))
     dp.callback_query.register(reject_review_handler, F.data.startswith("reject_review_"))
+    dp.callback_query.register(admin_reviews, F.data == "admin_reviews")
