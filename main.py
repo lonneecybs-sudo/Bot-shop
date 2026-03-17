@@ -1,46 +1,51 @@
+#!/usr/bin/env python3
 import asyncio
 import logging
+
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
-from handlers import start, order, payment, admin, reviews
-from database import init_db
+from config import TOKEN, ADMIN_ID
+
+# Импортируем роутеры
+from handlers.start import router as start_router
+from handlers.order import router as order_router
+from handlers.payment import router as payment_router
+from handlers.admin import router as admin_router
+from handlers.reviews import router as reviews_router
 
 # Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Токен бота (замените на свой)
-BOT_TOKEN = "8546103501:AAGZv9evkjpQJR92TxX5-6Do7W_7M6XwXbw"
-
 async def main():
-    """Главная функция запуска бота"""
-    # Инициализация базы данных
-    logger.info("Инициализация базы данных...")
-    init_db()
-    logger.info("База данных готова")
+    bot = Bot(token=TOKEN)
+    storage = MemoryStorage()
+    dp = Dispatcher(storage=storage)
     
-    # Инициализация бота и диспетчера
-    bot = Bot(token=BOT_TOKEN)
-    dp = Dispatcher(storage=MemoryStorage())
+    # Подключаем все роутеры
+    dp.include_router(start_router)
+    dp.include_router(order_router)
+    dp.include_router(payment_router)
+    dp.include_router(admin_router)
+    dp.include_router(reviews_router)
     
-    # Регистрация роутеров
-    dp.include_router(start.router)
-    dp.include_router(order.router)
-    dp.include_router(payment.router)
-    dp.include_router(admin.router)
-    dp.include_router(reviews.router)
+    logger.info("=" * 50)
+    logger.info("🚀 БОТ ЗАПУЩЕН!")
+    logger.info("=" * 50)
+    logger.info(f"👤 Админ ID: {ADMIN_ID}")
+    logger.info("=" * 50)
     
-    logger.info("Бот запущен и готов к работе!")
-    
-    # Запуск поллинга
     try:
         await dp.start_polling(bot)
     finally:
         await bot.session.close()
+        logger.info("👋 Бот остановлен")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("👋 Бот остановлен пользователем")
+    except Exception as e:
+        logger.error(f"❌ Ошибка: {e}")
