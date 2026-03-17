@@ -1,17 +1,17 @@
+
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
 
-from config import Tariff, ADMIN_ID, logger
+from config import Tariff, ADMIN_ID
 from keyboards import (
-    get_tariff_keyboard, 
+    get_tariff_keyboard,
     get_client_order_keyboard,
-    get_admin_order_keyboard, 
+    get_admin_order_keyboard,
     get_back_keyboard
 )
 from states import OrderStates
 from database import create_order, get_order, get_user_orders
-import database
 
 router = Router()
 
@@ -82,7 +82,6 @@ async def description_received(message: Message, state: FSMContext, bot):
         parse_mode="HTML"
     )
     
-    # Уведомление админу
     await bot.send_message(
         ADMIN_ID,
         f"🔔 <b>НОВЫЙ ЗАКАЗ #{order_id}</b>\n\n"
@@ -101,8 +100,7 @@ async def my_orders(callback: CallbackQuery):
     if not user_orders:
         await callback.message.delete()
         await callback.message.answer(
-            "📋 <b>У вас пока нет заказов</b>\n\n"
-            "Нажмите «Заказать бота», чтобы оформить заказ.",
+            "📋 <b>У вас пока нет заказов</b>",
             reply_markup=get_back_keyboard(),
             parse_mode="HTML"
         )
@@ -127,8 +125,6 @@ async def my_orders(callback: CallbackQuery):
         text += f"{status_emoji} <b>Заказ №{order['id']}</b>\n"
         text += f"└ {order['tariff'].value[0]} | {status_text}\n"
         text += f"└ {order['created_at'].strftime('%d.%m.%Y')}\n\n"
-    
-    text += "<i>Статусы обновляются автоматически</i>"
     
     await callback.message.delete()
     await callback.message.answer(text, reply_markup=get_back_keyboard(), parse_mode="HTML")
