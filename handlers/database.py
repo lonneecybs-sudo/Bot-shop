@@ -13,7 +13,7 @@ def create_order(user_id: int, username: str, tariff: Tariff, description: str) 
         'username': username,
         'tariff': tariff,
         'description': description,
-        'status': 'pending',  # pending, waiting_payment, development, completed
+        'status': 'pending',
         'created_at': datetime.now(),
         'paid': False,
         'token': None
@@ -59,12 +59,13 @@ def create_review(user_id: int, username: str, rating: int, text: str, order_id:
     reviews.append(review)
     return review_counter
 
+# ⚠️ ВАЖНО: ЭТИ ФУНКЦИИ ДОЛЖНЫ БЫТЬ ЗДЕСЬ!
 def get_approved_reviews() -> list:
     """Получить все одобренные отзывы"""
     return [r for r in reviews if r.get('approved', False)]
 
 def get_pending_reviews() -> list:
-    """Получить отзывы на модерации"""
+    """Получить отзывы на модерации (НЕ одобренные)"""
     return [r for r in reviews if not r.get('approved', False)]
 
 def approve_review(review_id: int) -> bool:
