@@ -1,8 +1,7 @@
 from datetime import datetime
-from config import orders, reviews, order_counter, review_counter, Order, Review, Tariff
+from config import orders, reviews, order_counter, review_counter, Order, Tariff
 
 def create_order(user_id: int, username: str, tariff: Tariff, description: str) -> int:
-    """Создание нового заказа"""
     global order_counter
     order_counter += 1
     order = Order(
@@ -18,32 +17,21 @@ def create_order(user_id: int, username: str, tariff: Tariff, description: str) 
     orders[order_counter] = order
     return order_counter
 
-def get_order(order_id: int) -> Order:
-    """Получить заказ по ID"""
+def get_order(order_id: int):
     return orders.get(order_id)
 
-def update_order_status(order_id: int, status: str):
-    """Обновить статус заказа"""
-    if order_id in orders:
-        orders[order_id].status = status
-
 def mark_order_paid(order_id: int):
-    """Отметить заказ как оплаченный"""
     if order_id in orders:
         orders[order_id].paid = True
         orders[order_id].status = 'development'
 
 def get_user_orders(user_id: int) -> list:
-    """Получить все заказы пользователя"""
     return [o for o in orders.values() if o.user_id == user_id]
 
-# ИСПРАВЛЕНО: добавляем order_id в отзывы
 def create_review(user_id: int, username: str, rating: int, text: str, order_id: int = None) -> int:
-    """Создание нового отзыва"""
     global review_counter
     review_counter += 1
     
-    # Создаем словарь вместо dataclass для гибкости
     review = {
         'id': review_counter,
         'user_id': user_id,
@@ -58,11 +46,9 @@ def create_review(user_id: int, username: str, rating: int, text: str, order_id:
     return review_counter
 
 def get_approved_reviews() -> list:
-    """Получить все одобренные отзывы"""
     return [r for r in reviews if r.get('approved', False)]
 
 def approve_review(review_id: int) -> bool:
-    """Одобрить отзыв"""
     for review in reviews:
         if review['id'] == review_id:
             review['approved'] = True
@@ -70,12 +56,10 @@ def approve_review(review_id: int) -> bool:
     return False
 
 def reject_review(review_id: int):
-    """Отклонить отзыв (удалить)"""
     global reviews
     reviews = [r for r in reviews if r['id'] != review_id]
 
 def get_stats():
-    """Получить статистику"""
     total_orders = len(orders)
     completed = len([o for o in orders.values() if o.status == 'completed'])
     paid = len([o for o in orders.values() if o.paid])
