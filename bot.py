@@ -34,6 +34,68 @@ order_counter = 0
 reviews = []
 review_counter = 0
 
+# ========== РЕАЛИСТИЧНЫЕ ОТЗЫВЫ ==========
+import random
+
+def add_sample_reviews():
+    global review_counter
+    
+    # ТВОИ ЮЗЕРНЕЙМЫ (14 штук)
+    usernames = [
+        "playboyrule", "BLADdrip", "Dragonsz1", "Fusionlol", "xxxxvwl",
+        "Mirikjsnsks", "hicoveeer", "jiksop212199", "xxxxvwlu", "FydCortBoy",
+        "furyskotikpashot", "xyecocyrodec", "gamagrilaGorilla", "HollikXyeta"
+    ]
+    
+    # Реалистичные отзывы
+    reviews_data = [
+        # Положительные (8 штук)
+        (5, "Сделал бота для магазина, все работает четко! Немного задержал, но предупредил", "playboyrule"),
+        (5, "Третий раз заказываю, всегда все нравится", "BLADdrip"),
+        (4, "Норм бот, только кнопки немного кривые, сам исправил", "Dragonsz1"),
+        (5, "Помог с ботом для конкурса, отработал отлично", "Fusionlol"),
+        (4, "Заказывал бота для рассылок, все ок", "xxxxvwl"),
+        (5, "Сделал бота для техподдержки, клиенты довольны", "Mirikjsnsks"),
+        (5, "Быстро, качественно, не дорого", "hicoveeer"),
+        (4, "Есть мелкие недочеты, но в целом доволен", "jiksop212199"),
+        
+        # Средние (3 штуки)
+        (3, "Ну такое... вроде работает, но могло быть и лучше", "xxxxvwlu"),
+        (3, "Сделал, но не все функции как хотелось", "FydCortBoy"),
+        (4, "Неплохо, но дороговато для такого функционала", "furyskotikpashot"),
+        
+        # Плохие (3 штуки)
+        (2, "Принял заказ, сказал сделает за 2 дня. На 4й день написал что не получается и отказался", "xyecocyrodec"),
+        (1, "Не доделал бота, бросил на полпути, пришлось искать другого", "gamagrilaGorilla"),
+        (2, "Сделал, но половина функций не работает, на просьбу исправить игнорит", "HollikXyeta"),
+    ]
+    
+    # Добавляем отзывы
+    from datetime import datetime, timedelta
+    end_date = datetime.now()
+    
+    for i, (rating, text, username) in enumerate(reviews_data):
+        random_days = random.randint(1, 60)
+        review_date = end_date - timedelta(days=random_days)
+        
+        review_counter += 1
+        reviews.append({
+            'id': review_counter,
+            'user_id': 1000000 + i,
+            'username': username,
+            'rating': rating,
+            'text': text,
+            'date': review_date,
+            'approved': True,
+            'order_id': 1000 + i
+        })
+    
+    print(f"✅ Добавлено {len(reviews_data)} реалистичных отзывов")
+
+# ВЫЗОВИ ФУНКЦИЮ ПОСЛЕ СОЗДАНИЯ ХРАНИЛИЩ
+import random
+add_sample_reviews()
+
 # ========== СОСТОЯНИЯ ==========
 class OrderStates(StatesGroup):
     entering_description = State()
