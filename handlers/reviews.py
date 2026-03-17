@@ -90,3 +90,17 @@ async def review_text_received(message: Message, state: FSMContext, bot):
     await state.clear()
     
     await message.answer(
+        "✅ <b>СПАСИБО ЗА ОТЗЫВ!</b>\n\nОтзыв отправлен на модерацию.",
+        reply_markup=get_back_keyboard(),
+        parse_mode="HTML"
+    )
+    
+    await bot.send_message(
+        ADMIN_ID,
+        f"📝 <b>НОВЫЙ ОТЗЫВ</b>\n\n"
+        f"От: @{message.from_user.username}\n"
+        f"Оценка: {'⭐' * rating}\n"
+        f"Текст: {message.text}",
+        reply_markup=get_admin_reviews_keyboard(review_id),
+        parse_mode="HTML"
+    )
