@@ -63,6 +63,10 @@ def get_approved_reviews() -> list:
     """Получить все одобренные отзывы"""
     return [r for r in reviews if r.get('approved', False)]
 
+def get_pending_reviews() -> list:
+    """Получить отзывы на модерации"""
+    return [r for r in reviews if not r.get('approved', False)]
+
 def approve_review(review_id: int) -> bool:
     """Одобрить отзыв"""
     for review in reviews:
@@ -75,10 +79,6 @@ def reject_review(review_id: int):
     """Отклонить отзыв (удалить)"""
     global reviews
     reviews = [r for r in reviews if r['id'] != review_id]
-
-def get_pending_reviews() -> list:
-    """Получить отзывы на модерации"""
-    return [r for r in reviews if not r.get('approved', False)]
 
 # === СТАТИСТИКА ===
 def get_stats():
