@@ -31,12 +31,12 @@ async def show_reviews(callback: CallbackQuery):
         
         text = "💬 <b>ОТЗЫВЫ НАШИХ КЛИЕНТОВ</b>\n\n"
         
-        for review in approved[-10:]:  # последние 10 отзывов
-            stars = "⭐" * review.rating
+        for review in approved[-10:]:
+            stars = "⭐" * review['rating']
             text += f"{stars}\n"
-            text += f"<b>@{review.username}:</b>\n"
-            text += f"{review.text}\n"
-            text += f"📅 {review.date.strftime('%d.%m.%Y')}\n"
+            text += f"<b>@{review['username']}:</b>\n"
+            text += f"{review['text']}\n"
+            text += f"📅 {review['date'].strftime('%d.%m.%Y')}\n"
             text += "─" * 30 + "\n\n"
         
         await callback.message.delete()
@@ -57,13 +57,7 @@ async def show_reviews(callback: CallbackQuery):
 async def leave_review_start(callback: CallbackQuery, state: FSMContext):
     """Начало создания отзыва"""
     try:
-        # Получаем ID заказа из callback_data
-        parts = callback.data.split("_")
-        if len(parts) < 3:
-            await callback.answer("❌ Ошибка в данных", show_alert=True)
-            return
-            
-        order_id = int(parts[2])
+        order_id = int(callback.data.split("_")[2])
         order = get_order(order_id)
         
         if not order:
@@ -84,7 +78,7 @@ async def leave_review_start(callback: CallbackQuery, state: FSMContext):
         # Проверяем, не оставлял ли уже отзыв
         from database import reviews
         for review in reviews:
-            if review.user_id == callback.from_user.id and review.order_id == order_id:
+            if review['user_id'] == callback.from_user.id and review.get('order_id') == order_id:
                 await callback.answer("❌ Вы уже оставляли отзыв для этого заказа!", show_alert=True)
                 return
         
@@ -164,7 +158,7 @@ async def review_text_received(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
         
-        # Уведомление админу о новом отзыве
+        # Уведомление админу
         from config import bot
         await bot.send_message(
             ADMIN_ID,
@@ -173,7 +167,8 @@ async def review_text_received(message: Message, state: FSMContext):
             f"Оценка: {'⭐' * rating}\n"
             f"Текст: {message.text}\n\n"
             f"ID отзыва: {review_id}",
-            reply_markup=get_admin_reviews_keyboard(review_id)
+            reply_markup=get_admin_reviews_keyboard(review_id),
+            parse_mode="HTML"
         )
         
     except Exception as e:
@@ -184,9 +179,27 @@ async def review_text_received(message: Message, state: FSMContext):
         )
         await state.clear()
 
+async def approve_review_handler(callback: CallbackQuery):
+    """Одобрить отзыв"""
+    review_id = int(callback.data.split("_")[2])
+    from database import approve_review
+    if approve_review(review_id):
+        await callback.message.edit_text("✅ Отзыв одобрен!")
+    else:
+        await callback.answer("❌ Ошибка!", show_alert=True)
+
+async def reject_review_handler(callback: CallbackQuery):
+    """Отклонить отзыв"""
+    review_id = int(callback.data.split("_")[2])
+    from database import reject_review
+    reject_review(review_id)
+    await callback.message.edit_text("❌ Отзыв отклонен")
+
 def register_handlers(dp):
     """Регистрация обработчиков отзывов"""
     dp.callback_query.register(show_reviews, F.data == "show_reviews")
     dp.callback_query.register(leave_review_start, F.data.startswith("leave_review_"))
     dp.callback_query.register(review_rating_chosen, F.data.startswith("rate_"), OrderStates.waiting_for_review_rating)
     dp.message.register(review_text_received, OrderStates.waiting_for_review_text)
+    dp.callback_query.register(approve_review_handler, F.data.startswith("approve_review_"))
+    dp.callback_query.register(reject_review_handler, F.data.startswith("reject_review_"))
